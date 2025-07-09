@@ -7,7 +7,9 @@ vm_running() {
 }
 
 backup_vm() {
-    mkdir "${BACKUP_DIR}/${VMID}"
+    if ! ls "${BACKUP_DIR}/${VMID}" > /dev/null 2>&1; then
+        mkdir "${BACKUP_DIR}/${VMID}"
+    fi
 
     if vzdump $VMID --mode stop --compress zstd --dumpdir "${BACKUP_DIR}/${VMID}/"; then
         return 0
@@ -22,9 +24,9 @@ usage() {
   echo "Backup Proxmox VM."
   echo
   echo "Options:"
-  echo "  -h, --help                             Show this help message and exit"
-  echo "  -vm, --vmid XXX                        Specify the ID of the VM."
-  echo "  -dir, --backup_dir /path/to            Specify the local path to which the backup should be saved."
+  echo "  -h, --help                      Show this help message and exit"
+  echo "  -vm, --vmid XXX                 Specify the ID of the VM."
+  echo "  -dir, --backup_dir /path/to     Specify the local path to which the backup should be saved."
   echo
 }
 
@@ -63,9 +65,16 @@ main() {
             echo "Backup process failed."
             return 1
         else
-            echo "Backup process finished."
-            echo "Backup can be found at: ${BACKUP_DIR}/${VMID}"
+            echo -e "Backup process finished. \n"
         fi
+
+        echo "Starting GPG encryption" && sleep 3
+        echo "Encrypting Backup..."
+
+        LATEST_BACKUP=$(ls -t ${BACKUP_DIR}/${VMID}/*.zst | head -n1)
+        gpg --no-use-agent --cipher-algo AES256 -c "$LATEST_BACKUP" && rm "$LATEST_BACKUP"
+        rm -rf ~/.gnupg
+        echo "Backup can be found at: ${LATEST_BACKUP}.gpg"
 }
 
 # Start of logic
